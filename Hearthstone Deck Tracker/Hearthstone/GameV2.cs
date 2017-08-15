@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using HearthDb.Enums;
+using HearthMirror;
 using HearthMirror.Objects;
 using Hearthstone_Deck_Tracker.Enums;
 using Hearthstone_Deck_Tracker.Enums.Hearthstone;
@@ -25,8 +26,6 @@ namespace Hearthstone_Deck_Tracker.Hearthstone
 	{
 		public readonly List<long> IgnoredArenaDecks = new List<long>();
 		private GameMode _currentGameMode = GameMode.None;
-		private bool? _spectator;
-		private MatchInfo _matchInfo;
 		private Mode _currentMode;
 		private BrawlInfo _brawlInfo;
 
@@ -66,10 +65,11 @@ namespace Hearthstone_Deck_Tracker.Hearthstone
 		internal List<Tuple<int, List<string>>> StoredPowerLogs { get; } = new List<Tuple<int, List<string>>>();
 		internal Dictionary<int, string> StoredPlayerNames { get; } = new Dictionary<int, string>();
 		internal GameStats StoredGameStats { get; set; }
+		public List<AccountId> AccountIds { get; } = new List<AccountId>();
 
 		public Mode CurrentMode
 		{
-			get { return _currentMode; }
+			get => _currentMode;
 			set
 			{
 				_currentMode = value;
@@ -78,15 +78,7 @@ namespace Hearthstone_Deck_Tracker.Hearthstone
 		}
 
 		private FormatType _currentFormat = FormatType.FT_UNKNOWN;
-		public Format? CurrentFormat
-		{
-			get
-			{
-				if(_currentFormat == FormatType.FT_UNKNOWN)
-					_currentFormat = (FormatType)HearthMirror.Reflection.GetFormat();
-				return HearthDbConverter.GetFormat(_currentFormat);
-			}
-		}
+		public Format? CurrentFormat => HearthDbConverter.GetFormat(_currentFormat);
 
 		public Mode PreviousMode { get; set; }
 
@@ -111,7 +103,7 @@ namespace Hearthstone_Deck_Tracker.Hearthstone
 			}
 		}
 
-		public bool Spectator => _spectator ?? (bool)(_spectator = HearthMirror.Reflection.IsSpectating());
+		public bool Spectator { get; private set; }
 
 		public GameMode CurrentGameMode
 		{
@@ -125,49 +117,85 @@ namespace Hearthstone_Deck_Tracker.Hearthstone
 			}
 		}
 
-		private GameType _currentGameType;
-		public GameType CurrentGameType => _currentGameType != GameType.GT_UNKNOWN ? _currentGameType : (_currentGameType = (GameType)HearthMirror.Reflection.GetGameType());
+		public GameType CurrentGameType { get; private set; }
 
-		public MatchInfo MatchInfo => _matchInfo ?? (_matchInfo = HearthMirror.Reflection.GetMatchInfo());
-		private bool _matchInfoCacheInvalid = true;
+		public MatchInfo MatchInfo { get; private set; }
 
-		public BrawlInfo BrawlInfo => _brawlInfo ?? (_brawlInfo = HearthMirror.Reflection.GetBrawlInfo());
+		internal void CacheBrawlInfo() => _brawlInfo = Reflection.GetBrawlInfo();
+		public BrawlInfo BrawlInfo => _brawlInfo ?? (_brawlInfo = Reflection.GetBrawlInfo());
 
-		internal async void CacheMatchInfo()
+		private bool _gameDataCacheInvalid = true;
+
+		internal void InvalidateGameDataCache() => _gameDataCacheInvalid = true;
+
+		internal async void CacheGameData()
 		{
-			if(!_matchInfoCacheInvalid)
+			if(!_gameDataCacheInvalid)
+			{
+				Log.Info("Reflection cache still valid");
+				LogReflectionData(nameof(CacheGameData));
 				return;
-			_matchInfoCacheInvalid = false;
+			}
+			Log.Info("Updating reflection data...");
+			_gameDataCacheInvalid = false;
 			MatchInfo matchInfo;
-			while((matchInfo = HearthMirror.Reflection.GetMatchInfo()) == null || matchInfo.LocalPlayer == null || matchInfo.OpposingPlayer == null)
+			while(!AccountIds.Any() || !GetValidMatchInfo(out matchInfo))
 				await Task.Delay(1000);
-			Log.Info($"{matchInfo.LocalPlayer.Name} vs {matchInfo.OpposingPlayer.Name}");
-			_matchInfo = matchInfo;
+			MatchInfo = matchInfo;
 			Player.Name = matchInfo.LocalPlayer.Name;
 			Opponent.Name = matchInfo.OpposingPlayer.Name;
 			Player.Id = matchInfo.LocalPlayer.Id;
 			Opponent.Id = matchInfo.OpposingPlayer.Id;
+			Spectator = Reflection.IsSpectating();
+			CurrentGameType = (GameType)Reflection.GetGameType();
+			_currentFormat = (FormatType)Reflection.GetFormat();
+			MetaData.ServerInfo = Reflection.GetServerInfo();
+			LogReflectionData(nameof(CacheGameData));
+			if(!string.IsNullOrEmpty(MetaData.ServerInfo?.Address))
+			{
+				var region = Helper.GetRegionByServerIp(MetaData.ServerInfo.Address);
+				if(CurrentRegion == Region.UNKNOWN || region == Region.CHINA)
+				{
+					CurrentRegion = region;
+					Log.Info("Set current region to" + region);
+				}
+			}
 		}
 
-		internal async void CacheGameType()
+		private void LogReflectionData(string source = "") 
+			=> Log.Info($@"Player=[{Player.Name}, {Player.Id}], Opponent=[{Opponent.Name}, {Opponent.Id}], Spectator={Spectator}, GameType={CurrentGameType}, Format={_currentFormat}, Game={MetaData.ServerInfo.GameHandle}", source);
+
+		private bool GetValidMatchInfo(out MatchInfo matchInfo)
 		{
-			while((_currentGameType = (GameType)HearthMirror.Reflection.GetGameType()) == GameType.GT_UNKNOWN)
-				await Task.Delay(1000);
+			var tmpMatchInfo = Reflection.GetMatchInfo();
+			var player = tmpMatchInfo?.LocalPlayer;
+			var opponent = tmpMatchInfo?.OpposingPlayer;
+
+			if(player != null && opponent != null)
+			{
+				bool AccountMatch(AccountId acc, AccountId acc2) => acc.Hi == acc2.Hi && acc.Lo == acc2.Lo;
+				var playerAcc = AccountIds.FirstOrDefault(a => AccountMatch(a, player.AccountId));
+				var opponnetAcc = AccountIds.FirstOrDefault(a => AccountMatch(a, opponent.AccountId));
+				if(playerAcc != null && opponnetAcc != null)
+				{
+					matchInfo = tmpMatchInfo;
+					Log.Info("Found valid MatchInfo");
+					return true;
+				}
+			}
+			Log.Warn($"Could not find valid MatchInfo - Log=[{string.Join(", ", AccountIds.Select(x => x.Lo))}], Player={player?.AccountId.Lo}, Opponent={opponent?.AccountId.Lo}");
+			matchInfo = null;
+			return false;
 		}
-
-		internal void CacheSpectator() => _spectator = HearthMirror.Reflection.IsSpectating();
-
-		internal void CacheBrawlInfo() => _brawlInfo = HearthMirror.Reflection.GetBrawlInfo();
-
-		internal void InvalidateMatchInfoCache() => _matchInfoCacheInvalid = true;
 
 		public void Reset(bool resetStats = true)
 		{
 			Log.Info("-------- Reset ---------");
 
+			AccountIds.Clear();
 			Player.Reset();
 			Opponent.Reset();
-			if(!_matchInfoCacheInvalid && MatchInfo?.LocalPlayer != null && MatchInfo.OpposingPlayer != null)
+			if(!_gameDataCacheInvalid && MatchInfo?.LocalPlayer != null && MatchInfo.OpposingPlayer != null)
 			{
 				Player.Name = MatchInfo.LocalPlayer.Name;
 				Opponent.Name = MatchInfo.OpposingPlayer.Name;
@@ -177,9 +205,9 @@ namespace Hearthstone_Deck_Tracker.Hearthstone
 			Entities.Clear();
 			SavedReplay = false;
 			SecretsManager.Reset();
-			_spectator = null;
+			Spectator = false;
 			_currentGameMode = GameMode.None;
-			_currentGameType = GameType.GT_UNKNOWN;
+			CurrentGameType = GameType.GT_UNKNOWN;
 			_currentFormat = FormatType.FT_UNKNOWN;
 			if(!IsInMenu && resetStats)
 				CurrentGameStats = new GameStats(GameResult.None, "", "") {PlayerName = "", OpponentName = "", Region = CurrentRegion};

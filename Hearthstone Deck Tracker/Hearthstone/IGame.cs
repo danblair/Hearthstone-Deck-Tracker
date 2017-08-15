@@ -40,6 +40,7 @@ namespace Hearthstone_Deck_Tracker.Hearthstone
 		void Reset(bool resetStats = true);
 		void StoreGameState();
 		string GetStoredPlayerName(int id);
+		List<AccountId> AccountIds { get; }
 		SecretsManager SecretsManager { get; }
 		int OpponentMinionCount { get; }
 		int OpponentHandCount { get; }

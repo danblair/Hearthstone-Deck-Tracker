@@ -339,19 +339,7 @@ namespace Hearthstone_Deck_Tracker
 			_game.IsInMenu = false;
 			_savedReplay = false;
 			_game.Reset();
-			_game.CacheMatchInfo();
-			_game.CacheGameType();
-			_game.CacheSpectator();
-			_game.MetaData.ServerInfo = Reflection.GetServerInfo();
-			if(!string.IsNullOrEmpty(_game.MetaData.ServerInfo?.Address))
-			{
-				var region = Helper.GetRegionByServerIp(_game.MetaData.ServerInfo.Address);
-				if(_game.CurrentRegion == Region.UNKNOWN || region == Region.CHINA)
-				{
-					_game.CurrentRegion = region;
-					Log.Info("Set current region to" + region);
-				}
-			}
+			_game.CacheGameData();
 			TurnTimer.Instance.Start(_game).Forget();
 
 			var selectedDeck = DeckList.Instance.ActiveDeckVersion;
@@ -387,7 +375,7 @@ namespace Hearthstone_Deck_Tracker
 				Core.Overlay.HideTimers();
 				DeckManager.ResetAutoSelectCount();
 				Log.Info("Game ended...");
-				_game.InvalidateMatchInfoCache();
+				_game.InvalidateGameDataCache();
 				if(_game.CurrentGameMode == Spectator && _game.CurrentGameStats.Result == GameResult.None)
 				{
 					Log.Info("Game was spectator mode without a game result. Probably exited spectator mode early.");

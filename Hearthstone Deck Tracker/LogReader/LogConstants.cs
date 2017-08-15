@@ -38,7 +38,7 @@ namespace Hearthstone_Deck_Tracker.LogReader
 			public static readonly Regex GameEntityRegex = new Regex(@"GameEntity\ EntityID=(?<id>(\d+))");
 
 			public static readonly Regex PlayerEntityRegex =
-				new Regex(@"Player\ EntityID=(?<id>(\d+))\ PlayerID=(?<playerId>(\d+))\ GameAccountId=(?<gameAccountId>(.+))");
+				new Regex(@"Player\ EntityID=(?<id>(\d+))\ PlayerID=(?<playerId>(\d+))\ GameAccountId=\[hi=(?<hi>(\d+))\s+lo=(?<lo>(\d+))\]");
 
 			public static readonly Regex TagChangeRegex =
 				new Regex(@"TAG_CHANGE\ Entity=(?<entity>(.+))\ tag=(?<tag>(\w+))\ value=(?<value>(\w+))");

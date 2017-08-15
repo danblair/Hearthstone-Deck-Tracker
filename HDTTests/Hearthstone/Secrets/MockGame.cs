@@ -37,7 +37,7 @@ namespace HDTTests.Hearthstone.Secrets
 		public List<Card> DrawnLastGame { get; set; }
 		public Dictionary<int, Entity> Entities { get; set; }
 		public bool SavedReplay { get; set; }
-		public GameMetaData MetaData { get; }
+		public GameMetaData MetaData { get; set; }
 		public MatchInfo MatchInfo { get; set; }
 		public Mode CurrentMode { get; set; }
 		public Mode PreviousMode { get; set; }
@@ -57,6 +57,7 @@ namespace HDTTests.Hearthstone.Secrets
 			throw new NotImplementedException();
 		}
 
+		public List<AccountId> AccountIds { get; set; }
 		public SecretsManager SecretsManager { get; set; }
 		public int OpponentMinionCount { get; set; }
 		public int OpponentHandCount { get; set; }

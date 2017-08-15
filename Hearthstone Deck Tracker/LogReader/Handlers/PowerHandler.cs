@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using HearthDb.Enums;
+using HearthMirror.Objects;
 using Hearthstone_Deck_Tracker.Enums;
 using Hearthstone_Deck_Tracker.Hearthstone;
 using Hearthstone_Deck_Tracker.Hearthstone.Entities;
@@ -47,6 +48,11 @@ namespace Hearthstone_Deck_Tracker.LogReader.Handlers
 				gameState.SetCurrentEntity(id);
 				if(gameState.DeterminedPlayers)
 					_tagChangeHandler.InvokeQueuedActions(game);
+				game.AccountIds.Add(new AccountId
+				{
+					Hi = ulong.Parse(match.Groups["hi"].Value),
+					Lo = ulong.Parse(match.Groups["lo"].Value)
+				});
 				return;
 			}
 			if(TagChangeRegex.IsMatch(logLine))
