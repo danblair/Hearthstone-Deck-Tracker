@@ -1,3 +1,12 @@
+## __Release vNext__
+
+__Fixes__:
+- Fixed an issue where player and opponent cards/results would sometimes be swapped.
+- Fixed an issue where Adventure heroes would show up in the card lists.
+- Fixed an issue where entering card names in the arena rewards dialog would not work if the UI language was not english.
+- Fixed several issues related to secrets tracking.
+
+
 ## __Release v1.4.0 - 2017-08-08__
 
 __Updated for Knights of the Frozen Throne__
